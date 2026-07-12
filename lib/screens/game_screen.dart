@@ -1,21 +1,46 @@
 import 'package:flutter/material.dart';
 
+import '../data/dolch_words.dart';
 import 'results_screen.dart';
 
-class GameScreen extends StatelessWidget {
-  const GameScreen({super.key});
+class GameScreen extends StatefulWidget {
+  const GameScreen({
+    required this.selectedLevel,
+    super.key,
+  });
 
-  void _openPlaceholderResults(BuildContext context) {
+  final DolchLevel selectedLevel;
+
+  @override
+  State<GameScreen> createState() => _GameScreenState();
+}
+
+class _GameScreenState extends State<GameScreen> {
+  bool _isNavigating = false;
+
+  void _openPlaceholderResults() {
+    if (_isNavigating) {
+      return;
+    }
+
+    setState(() {
+      _isNavigating = true;
+    });
+
     Navigator.pushReplacement(
       context,
       MaterialPageRoute<void>(
-        builder: (context) => const ResultsScreen(),
+        builder: (context) => ResultsScreen(
+          selectedLevel: widget.selectedLevel,
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final wordCount = DolchWords.forLevel(widget.selectedLevel).length;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Game'),
@@ -35,19 +60,26 @@ class GameScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    'Game Screen',
+                    widget.selectedLevel.displayName,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineMedium,
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'The card grid will be added in a later checkpoint.',
+                    '$wordCount available words',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'The matching grid will be added later.',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
                   const SizedBox(height: 40),
                   FilledButton.icon(
-                    onPressed: () => _openPlaceholderResults(context),
+                    onPressed:
+                    _isNavigating ? null : _openPlaceholderResults,
                     icon: const Icon(Icons.emoji_events_rounded),
                     label: const Text('Test Results Screen'),
                   ),

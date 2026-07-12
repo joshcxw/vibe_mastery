@@ -1,20 +1,51 @@
 import 'package:flutter/material.dart';
 
+import '../data/dolch_words.dart';
 import 'game_screen.dart';
 
-class ResultsScreen extends StatelessWidget {
-  const ResultsScreen({super.key});
+class ResultsScreen extends StatefulWidget {
+  const ResultsScreen({
+    required this.selectedLevel,
+    super.key,
+  });
 
-  void _playAgain(BuildContext context) {
+  final DolchLevel selectedLevel;
+
+  @override
+  State<ResultsScreen> createState() => _ResultsScreenState();
+}
+
+class _ResultsScreenState extends State<ResultsScreen> {
+  bool _isNavigating = false;
+
+  void _playAgain() {
+    if (_isNavigating) {
+      return;
+    }
+
+    setState(() {
+      _isNavigating = true;
+    });
+
     Navigator.pushReplacement(
       context,
       MaterialPageRoute<void>(
-        builder: (context) => const GameScreen(),
+        builder: (context) => GameScreen(
+          selectedLevel: widget.selectedLevel,
+        ),
       ),
     );
   }
 
-  void _returnHome(BuildContext context) {
+  void _returnHome() {
+    if (_isNavigating) {
+      return;
+    }
+
+    setState(() {
+      _isNavigating = true;
+    });
+
     Navigator.popUntil(context, (route) => route.isFirst);
   }
 
@@ -46,19 +77,25 @@ class ResultsScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
+                    widget.selectedLevel.displayName,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
                     'Score details will be added later.',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
                   const SizedBox(height: 40),
                   FilledButton.icon(
-                    onPressed: () => _playAgain(context),
+                    onPressed: _isNavigating ? null : _playAgain,
                     icon: const Icon(Icons.replay_rounded),
                     label: const Text('Play Again'),
                   ),
                   const SizedBox(height: 16),
                   OutlinedButton.icon(
-                    onPressed: () => _returnHome(context),
+                    onPressed: _isNavigating ? null : _returnHome,
                     icon: const Icon(Icons.home_rounded),
                     label: const Text('Home'),
                     style: OutlinedButton.styleFrom(
