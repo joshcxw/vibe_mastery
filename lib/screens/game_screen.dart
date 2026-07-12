@@ -7,6 +7,8 @@ import '../game/word_match_game.dart';
 import '../models/game_card.dart';
 import '../widgets/word_card.dart';
 import 'results_screen.dart';
+import '../models/score_record.dart';
+import '../storage/score_storage.dart';
 
 class GameScreen extends StatefulWidget {
   const GameScreen({
@@ -23,6 +25,10 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen> {
   static const Duration _mismatchDelay = Duration(milliseconds: 900);
   static const Duration _completionDelay = Duration(milliseconds: 500);
+  final ScoreStorage _scoreStorage = ScoreStorage();
+
+  bool _isFinalizingRound = false;
+  String? _completedRecordId;
 
   late final WordMatchGame _game;
 
@@ -42,6 +48,9 @@ class _GameScreenState extends State<GameScreen> {
   void _startRound() {
     _delayedActionTimer?.cancel();
     _roundVersion++;
+
+    _isFinalizingRound = false;
+    _completedRecordId = null;
 
     _game.startRound(
       DolchWords.forLevel(widget.selectedLevel),
@@ -92,33 +101,78 @@ class _GameScreenState extends State<GameScreen> {
     final scheduledRoundVersion = _roundVersion;
 
     _delayedActionTimer = Timer(_completionDelay, () {
-      if (!mounted ||
-          scheduledRoundVersion != _roundVersion ||
-          _isNavigating ||
-          !_game.isComplete) {
+      _finishCompletedRound(scheduledRoundVersion);
+    });
+  }
+
+  Future<void> _finishCompletedRound(
+      int scheduledRoundVersion,
+      ) async {
+    if (!mounted ||
+        scheduledRoundVersion != _roundVersion ||
+        _isNavigating ||
+        _isFinalizingRound ||
+        !_game.isComplete) {
+      return;
+    }
+
+    final result = _game.finalResult;
+
+    if (result == null) {
+      return;
+    }
+
+    _isFinalizingRound = true;
+
+    final playedAt = DateTime.now();
+
+    _completedRecordId ??=
+    '${playedAt.microsecondsSinceEpoch}-${widget.selectedLevel.id}';
+
+    final record = ScoreRecord.fromRoundResult(
+      id: _completedRecordId!,
+      levelId: widget.selectedLevel.id,
+      result: result,
+      playedAt: playedAt,
+    );
+
+    try {
+      await _scoreStorage.saveIfAbsent(record);
+    } catch (_) {
+      if (!mounted || scheduledRoundVersion != _roundVersion) {
         return;
       }
 
-      final result = _game.finalResult;
+      _isFinalizingRound = false;
 
-      if (result == null) {
-        return;
-      }
-
-      setState(() {
-        _isNavigating = true;
-      });
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute<void>(
-          builder: (context) => ResultsScreen(
-            selectedLevel: widget.selectedLevel,
-            result: result,
-          ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('The score could not be saved.'),
         ),
       );
+
+      return;
+    }
+
+    if (!mounted ||
+        scheduledRoundVersion != _roundVersion ||
+        _isNavigating) {
+      return;
+    }
+
+    setState(() {
+      _isNavigating = true;
     });
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute<void>(
+        builder: (context) => ResultsScreen(
+          selectedLevel: widget.selectedLevel,
+          result: result,
+        ),
+      ),
+    );
   }
 
   @override
