@@ -99,13 +99,22 @@ class _GameScreenState extends State<GameScreen> {
         return;
       }
 
-      _isNavigating = true;
+      final result = _game.finalResult;
+
+      if (result == null) {
+        return;
+      }
+
+      setState(() {
+        _isNavigating = true;
+      });
 
       Navigator.pushReplacement(
         context,
         MaterialPageRoute<void>(
           builder: (context) => ResultsScreen(
             selectedLevel: widget.selectedLevel,
+            result: result,
           ),
         ),
       );
