@@ -1,6 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../data/dolch_words.dart';
+import '../game/word_match_game.dart';
+import '../models/game_card.dart';
+import '../widgets/word_card.dart';
 import 'results_screen.dart';
 
 class GameScreen extends StatefulWidget {
@@ -16,78 +21,199 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen> {
+  static const Duration _mismatchDelay = Duration(milliseconds: 900);
+  static const Duration _completionDelay = Duration(milliseconds: 500);
+
+  late final WordMatchGame _game;
+
+  Timer? _delayedActionTimer;
+
+  int _roundVersion = 0;
   bool _isNavigating = false;
 
-  void _openPlaceholderResults() {
-    if (_isNavigating) {
+  @override
+  void initState() {
+    super.initState();
+
+    _game = WordMatchGame();
+    _startRound();
+  }
+
+  void _startRound() {
+    _delayedActionTimer?.cancel();
+    _roundVersion++;
+
+    _game.startRound(
+      DolchWords.forLevel(widget.selectedLevel),
+    );
+  }
+
+  void _handleCardTap(GameCard card) {
+    if (_isNavigating || _game.isMismatchPending || _game.isComplete) {
       return;
     }
 
-    setState(() {
-      _isNavigating = true;
-    });
+    final result = _game.tapCard(card.id);
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute<void>(
-        builder: (context) => ResultsScreen(
-          selectedLevel: widget.selectedLevel,
+    if (result == CardTapResult.ignored) {
+      return;
+    }
+
+    setState(() {});
+
+    if (result == CardTapResult.mismatch) {
+      _scheduleMismatchHide();
+    } else if (result == CardTapResult.roundComplete) {
+      _scheduleResultsNavigation();
+    }
+  }
+
+  void _scheduleMismatchHide() {
+    _delayedActionTimer?.cancel();
+
+    final scheduledRoundVersion = _roundVersion;
+
+    _delayedActionTimer = Timer(_mismatchDelay, () {
+      if (!mounted ||
+          scheduledRoundVersion != _roundVersion ||
+          !_game.isMismatchPending) {
+        return;
+      }
+
+      setState(() {
+        _game.hideMismatch();
+      });
+    });
+  }
+
+  void _scheduleResultsNavigation() {
+    _delayedActionTimer?.cancel();
+
+    final scheduledRoundVersion = _roundVersion;
+
+    _delayedActionTimer = Timer(_completionDelay, () {
+      if (!mounted ||
+          scheduledRoundVersion != _roundVersion ||
+          _isNavigating ||
+          !_game.isComplete) {
+        return;
+      }
+
+      _isNavigating = true;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute<void>(
+          builder: (context) => ResultsScreen(
+            selectedLevel: widget.selectedLevel,
+          ),
+        ),
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _delayedActionTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.selectedLevel.displayName),
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+          child: Column(
+            children: [
+              _RoundStatus(
+                matches: _game.matches,
+                totalPairs: WordMatchGame.pairCount,
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return _buildResponsiveGrid(constraints);
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
+  Widget _buildResponsiveGrid(BoxConstraints constraints) {
+    final columnCount = constraints.maxWidth >= 600 ? 4 : 3;
+    final rowCount = (WordMatchGame.cardCount / columnCount).ceil();
+
+    const spacing = 10.0;
+
+    final totalHorizontalSpacing = spacing * (columnCount - 1);
+    final totalVerticalSpacing = spacing * (rowCount - 1);
+
+    final cardWidth =
+        (constraints.maxWidth - totalHorizontalSpacing) / columnCount;
+
+    final cardHeight =
+        (constraints.maxHeight - totalVerticalSpacing) / rowCount;
+
+    final safeCardHeight = cardHeight <= 0 ? cardWidth : cardHeight;
+
+    return GridView.builder(
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _game.cards.length,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: columnCount,
+        crossAxisSpacing: spacing,
+        mainAxisSpacing: spacing,
+        childAspectRatio: cardWidth / safeCardHeight,
+      ),
+      itemBuilder: (context, index) {
+        final card = _game.cards[index];
+
+        return WordCard(
+          key: ValueKey(card.id),
+          card: card,
+          enabled: !_isNavigating && !_game.isMismatchPending,
+          onTap: () => _handleCardTap(card),
+        );
+      },
+    );
+  }
+}
+
+class _RoundStatus extends StatelessWidget {
+  const _RoundStatus({
+    required this.matches,
+    required this.totalPairs,
+  });
+
+  final int matches;
+  final int totalPairs;
+
   @override
   Widget build(BuildContext context) {
-    final wordCount = DolchWords.forLevel(widget.selectedLevel).length;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Game'),
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 500),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.grid_view_rounded,
-                    size: 96,
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    widget.selectedLevel.displayName,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    '$wordCount available words',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'The matching grid will be added later.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  const SizedBox(height: 40),
-                  FilledButton.icon(
-                    onPressed:
-                    _isNavigating ? null : _openPlaceholderResults,
-                    icon: const Icon(Icons.emoji_events_rounded),
-                    label: const Text('Test Results Screen'),
-                  ),
-                ],
-              ),
-            ),
+    return Semantics(
+      label: '$matches of $totalPairs pairs matched',
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.emoji_events_rounded,
+            size: 28,
           ),
-        ),
+          const SizedBox(width: 8),
+          Text(
+            '$matches / $totalPairs',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+        ],
       ),
     );
   }
