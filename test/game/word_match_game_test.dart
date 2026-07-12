@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vibe_mastery/game/word_match_game.dart';
 import 'package:vibe_mastery/models/game_card.dart';
+import 'package:vibe_mastery/game/round_timer.dart';
 
 void main() {
   const availableWords = [

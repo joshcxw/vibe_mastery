@@ -1,6 +1,10 @@
 import 'dart:math';
 
 import '../models/game_card.dart';
+import '../models/round_metrics.dart';
+import '../models/round_result.dart';
+import 'round_timer.dart';
+import 'word_match_score.dart';
 
 enum CardTapResult {
   firstCardRevealed,
@@ -11,12 +15,18 @@ enum CardTapResult {
 }
 
 class WordMatchGame {
-  WordMatchGame({Random? random}) : _random = random ?? Random();
+  WordMatchGame({
+    Random? random,
+    RoundTimer? timer,
+  })  : _random = random ?? Random(),
+        _timer = timer ?? RoundTimer();
 
   static const int pairCount = 6;
   static const int cardCount = pairCount * 2;
 
   final Random _random;
+  final RoundTimer _timer;
+  RoundResult? _finalResult;
 
   final List<GameCard> _cards = [];
 
@@ -31,6 +41,10 @@ class WordMatchGame {
   int mismatches = 0;
 
   List<GameCard> get cards => List.unmodifiable(_cards);
+
+  RoundResult? get finalResult => _finalResult;
+
+  Duration get elapsedTime => _timer.elapsed;
 
   bool get isMismatchPending => _isMismatchPending;
 
@@ -49,6 +63,7 @@ class WordMatchGame {
     }
 
     _clearRoundState();
+    _timer.start();
     _roundNumber++;
 
     uniqueWords.shuffle(_random);
@@ -128,6 +143,7 @@ class WordMatchGame {
       _clearSelection();
 
       if (isComplete) {
+        _finalizeResultOnce();
         return CardTapResult.roundComplete;
       }
 
@@ -181,6 +197,9 @@ class WordMatchGame {
   }
 
   void _clearRoundState() {
+    _timer.reset();
+    _finalResult = null;
+
     _cards.clear();
     _clearSelection();
 
@@ -191,4 +210,27 @@ class WordMatchGame {
     matches = 0;
     mismatches = 0;
   }
+
+  void _finalizeResultOnce() {
+    if (_finalResult != null) {
+      return;
+    }
+
+    _timer.stop();
+
+    final metrics = RoundMetrics(
+      numberOfPairs: pairCount,
+      totalFlips: flips,
+      pairAttempts: attemptedPairs,
+      mismatches: mismatches,
+      matches: matches,
+      elapsedTime: _timer.elapsed,
+    );
+
+    _finalResult = RoundResult(
+      score: WordMatchScore.calculate(metrics),
+      metrics: metrics,
+    );
+  }
+
 }
