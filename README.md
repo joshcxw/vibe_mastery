@@ -135,6 +135,8 @@ This will hold up until the project grows into multiple complex games or require
 # AI Usage
 
 This project was developed using AI assistance as required by the course assignment. AI was used to help plan the architecture, generate implementation checkpoints, explain code, assist with debugging, and create tests. All design decisions, integration, testing, and final understanding remained my responsibility.
+Link to full ChatGPT Prompt Log:
+https://chatgpt.com/share/6a544a73-ff30-83ea-9c17-0709560d900a
 
 ---
 
